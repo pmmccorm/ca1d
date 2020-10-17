@@ -1,0 +1,22 @@
+[package]
+name = "ca1d"
+version = "0.1.0"
+authors = ["Patrick McCormick <patrick.m.mccormick@intel.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "ca1d"
+path = "src/lib.rs"
+
+[[bin]]
+name = "ca1d"
+path = "src/main.rs"
+
+[dependencies]
+clap = "3.0.0-beta.1"
+term_size = "0.3.2"
+termcolor = "1.1.0"
+png = "0.16.7"
+rand = "0.7.3"
