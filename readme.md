@@ -1,4 +1,4 @@
-** ca1d **
+** ca1d
 
 1d cellular automata simulation with terminal and PNG output.
 
@@ -13,7 +13,7 @@ There are a handful of different output modes:
 	- Raw (writes cell values in binary, no newlines)
 
 
-* examples *
+* examples
 
-* limitations *
-* future directions *
+* limitations
+* future directions
