@@ -6,12 +6,11 @@ use ca1d::{CA, Output, Border, automate};
 #[test]
 fn code600() {
 	let ca = CA::new(
-		&String::from("1"),
+		vec![0,0,1,0,0],
 		3,
 		3,
 		&String::from("600"),
 		Border::Ring,
-		5,
 		true,
 	);
 
@@ -22,12 +21,11 @@ fn code600() {
 #[test]
 fn code777() {
 	let ca = CA::new(
-		&String::from("1"),
+		vec![0,0,0,1,0,0,0],
 		3,
 		3,
 		&String::from("777"),
 		Border::Ring,
-		7,
 		true,
 	);
 

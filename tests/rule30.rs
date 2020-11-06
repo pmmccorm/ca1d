@@ -7,12 +7,11 @@ use ca1d::{CA, Output, Border, automate};
 #[test]
 fn rule30() {
 	let ca = CA::new(
-		&String::from("1"),
+		vec![0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
 		3,
 		2,
 		&String::from("30"),
 		Border::Ring,
-		31,
 		false,
 	);
 
@@ -23,12 +22,11 @@ fn rule30() {
 #[test]
 fn rule90() {
 	let ca = CA::new(
-		&String::from("1"),
+		vec![0,0,1,0,0],
 		3,
 		2,
 		&String::from("90"),
 		Border::Ring,
-		5,
 		false,
 	);
 
