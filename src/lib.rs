@@ -137,7 +137,7 @@ impl CAEval {
 }
 
 // possibly an optimized from_digit()
-fn from_digit(c : & Cell) -> char {
+pub fn from_digit(c : & Cell) -> char {
 	assert!(*c <= 36);
 
 	[ '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
@@ -150,10 +150,6 @@ trait CAWriter {
 	fn new(radix: u32, width: usize, hite: usize) -> Self where Self: Sized;
 
 	fn write_line(&mut self, v: & Lattice);
-
-	// only unicode2 writer needs 2 lines at a time
-	fn write_lines(&mut self, _v1: & Lattice, _v2: & Lattice) { panic!(); }
-	fn num_lines(&self) -> u32 { 1 }
 }
 
 struct NullWriter { }
@@ -267,6 +263,7 @@ struct UnicodeAnsiWriter {
 	bufwtr: termcolor::BufferWriter,
 	colors: Vec<Color>,
 	radix: u32,
+	config: Option<Lattice>,
 }
 impl CAWriter for UnicodeAnsiWriter {
 	fn new(radix: u32, _width: usize, _hite: usize) -> Self {
@@ -280,25 +277,24 @@ impl CAWriter for UnicodeAnsiWriter {
 		Self {
 			bufwtr: BufferWriter::stdout(ColorChoice::Always),
 			colors: colors,
-			radix: radix
+			radix: radix,
+			config: None,
 		}
 	}
 
-	fn num_lines(&self) -> u32 { 2 }
-
-	fn write_line(&mut self, _v: & Lattice) {
-		panic!("TODO");
-	}
-
 	#[allow(unused_must_use)]
-	fn write_lines(&mut self, top: & Lattice, bot: & Lattice) {
+	fn write_line(&mut self, v: & Lattice) {
 		let mut buffer = self.bufwtr.buffer();
+		let top: Lattice;
 
-		assert_eq!(top.len(), bot.len());
+		match &self.config {
+			Some(t) => top = t.to_vec(),
+			None => { self.config = Some(v.to_vec()); return; }
+		}
 
 		for (i, _) in top.iter().enumerate() {
 			let idx_top : usize = idx_select(top[i], self.radix, self.colors.len());
-			let idx_bot : usize = idx_select(bot[i], self.radix, self.colors.len());
+			let idx_bot : usize = idx_select(v[i], self.radix, self.colors.len());
 			buffer.set_color(
 				ColorSpec::new().set_fg(Some(self.colors[idx_top])).set_bg(Some(self.colors[idx_bot])));
 
@@ -310,6 +306,17 @@ impl CAWriter for UnicodeAnsiWriter {
 		write!(&mut buffer, "\n");
 
 		self.bufwtr.print(&buffer);
+		self.config = None;
+	}
+}
+
+impl Drop for UnicodeAnsiWriter {
+	// we could have a previously written line cached, flush it here
+	fn drop(&mut self) {
+		if let Some(v) = &self.config {
+			let pad : Lattice = [CELL0].repeat(v.len());
+			self.write_line(&pad);
+		}
 	}
 }
 
@@ -365,6 +372,10 @@ fn to_base_triple(c: Cell, radix: u32) -> Vec<f32> {
 }
 
 // covers up to 64 symbols..base 7 will bring to 343
+// convert the given cell [0,255] into a differently based digit that fits into three
+// symbols, ie 10 -> 130 (10 in base 3)
+// then scale the R,G,B values by this triple.
+// makes for maximally distant, but somewhat ugly colors
 fn cell_to_rgb(c: Cell, radix: u32) -> (u8, u8, u8) {
 	let base = if radix < 8 {
 		2
@@ -483,10 +494,10 @@ impl CA {
 		let mut next : Vec<u8> = Vec::with_capacity(config.len());
 		let nabor_size = self.nabor_size as usize;
 		let nabor_side = (nabor_size - 1) / 2;
+		let mut nabors : Vec<u8> = Vec::with_capacity(nabor_size);
 
 		for idx in 0 .. config.len() {
 			let idx : i32 = idx as i32;
-			let mut nabors : Vec<u8> = Vec::with_capacity(nabor_size);
 
 			for i in (idx - nabor_side as i32) .. (idx + nabor_side as i32) + 1 {
 				if i < 0 || i >= config.len() as i32 {
@@ -497,6 +508,7 @@ impl CA {
 			}
 
 			next.push(self.rule.eval(&nabors));
+			nabors.clear();
 		}
 
 		return next;
@@ -506,16 +518,17 @@ impl CA {
 		let mut next : Vec<u8> = Vec::with_capacity(config.len());
 		let nabor_size = self.nabor_size as usize;
 		let nabor_side = (nabor_size - 1) / 2;
+		let mut nabors : Lattice = Vec::with_capacity(nabor_size);
 
 		for idx in 0 .. config.len() {
 			let idx : i32 = idx as i32;
-			let mut nabors : Vec<u8> = Vec::with_capacity(nabor_size);
 
 			for i in (idx - nabor_side as i32) .. (idx + nabor_side as i32) + 1 {
 				nabors.push(config[idx_mod(i, config.len())]);
 			}
 
 			next.push(self.rule.eval(&nabors));
+			nabors.clear();
 		}
 
 		return next;
@@ -553,7 +566,7 @@ impl CAPrinter<'_> {
 		self.eval_print(self.from, self.to)
 	}
 
-	// returns gtfs per second
+	// returns cells per second
 	fn eval_print(&mut self, from : usize, count : usize) -> (f64, Lattice) {
 		let mut config = self.ca.config.clone();
 		let start = Instant::now();
@@ -562,25 +575,13 @@ impl CAPrinter<'_> {
 			config = self.ca.gtf(&config);
 		}
 
-		match self.output.num_lines() {
-			1 => {
-				for _ in 0 .. count {
-					self.output.write_line(&config);
-					config = self.ca.gtf(&config);
-				}
-			}
-			2 => {
-				let mut config2;
-				for _ in 0 .. count / 2 {
-					config2 = self.ca.gtf(&config.clone());
-					self.output.write_lines(&config, &config2);
-					config = self.ca.gtf(&config2);
-				}
-			}
-			_ => { panic!("don't know how to handle"); }
+		for _ in 0 .. count {
+			self.output.write_line(&config);
+			config = self.ca.gtf(&config);
 		}
 
-		((from + count) as f64 / start.elapsed().as_secs_f64(), config)
+		(((from + count) * config.len()) as f64 /
+		 start.elapsed().as_secs_f64(), config)
 	}
 }
 
