@@ -1,4 +1,4 @@
-use ca1d::{CA, Output, Border, automate};
+use ca1d::{CA, Output, Border, automate, CAEvalType};
 
 // end results taken from:
 // https://mathworld.wolfram.com/Rule30.html
@@ -10,9 +10,8 @@ fn rule30() {
 		vec![0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
 		3,
 		2,
-		&String::from("30"),
+		CAEvalType::new(&String::from("30")).unwrap(),
 		Border::Ring,
-		false,
 	);
 
 	let (_, config) = automate(Output::Null, 0, 15, &ca);
@@ -25,9 +24,8 @@ fn rule90() {
 		vec![0,0,1,0,0],
 		3,
 		2,
-		&String::from("90"),
+		CAEvalType::new(&String::from("90")).unwrap(),
 		Border::Ring,
-		false,
 	);
 
 	let (_, config) = automate(Output::Null, 0, 1, &ca);

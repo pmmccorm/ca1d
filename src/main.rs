@@ -4,7 +4,7 @@ use crate::clap::Clap;
 use rand::Rng;
 use term_size;
 
-use ca1d::{CA, automate, Output, Border, Lattice, Cell, CELL0, from_digit};
+use ca1d::{CA, automate, Output, Border, Lattice, Cell, CELL0, CAEvalType};
 
 #[derive(Clap, Debug)]
 #[clap(version = "1.0", author = "www.github.com/pmmccorm/ca1d")]
@@ -16,7 +16,7 @@ struct Opts {
 	nabor_size: u32,
 
 	/// Wolfram style rule number [0, order^order^neighbor_size)
-	rule_number: String,
+	rule_number: CAEvalType,
 
 	/// initial configuration string in base 36, eg "01f" -> 0, 1, 15
 	start_config: String,
@@ -44,10 +44,6 @@ struct Opts {
 	/// start displaying automation after N steps
 	#[clap(long, default_value("0"))]
 	from: usize,
-
-	/// interpret given rule number using Wolfram code scheme
-	#[clap(long)]
-	code: bool,
 }
 
 impl Opts {
@@ -85,8 +81,8 @@ impl Opts {
 		CA::new(start_config,
 			self.nabor_size,
 			self.rule_order,
-			&rule_transform(self.rule_order, width, &self.rule_number),
-			self.border, self.code)
+			self.rule_number.clone(),
+			self.border)
 	}
 }
 
@@ -120,21 +116,6 @@ fn config_transform(radix: u32, width: usize, s: & String) -> Lattice {
 	}
 
 	config
-}
-
-fn rule_transform(radix: u32, width: usize, r: & String) -> String {
-	let mut s = String::from("");
-	let mut rng = rand::thread_rng();
-
-	for i in r.chars() {
-		if i == '@' {
-			s.push(from_digit(&(rng.gen_range(0, radix) as Cell)));
-		} else {
-			s.push(i);
-		}
-	}
-
-	s
 }
 
 fn term_wh() -> (usize, usize) {
@@ -180,7 +161,7 @@ pub fn main() {
 	if opts.verbose > 0 {
 		eprintln!("\n{} /s", per_s);
 
-		eprintln!("ca1d {} {} {} {}",
+		eprintln!("ca1d {} {} {:?} {}",
 			 opts.rule_order,
 			 opts.nabor_size,
 			 opts.rule_number,

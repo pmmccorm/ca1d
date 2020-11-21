@@ -1,4 +1,4 @@
-use ca1d::{CA, Output, Border, automate};
+use ca1d::{CA, Output, Border, automate, CAEvalType};
 
 // end results taken from:
 // https://mathworld.wolfram.com/TotalisticCellularAutomaton.html
@@ -9,9 +9,8 @@ fn code600() {
 		vec![0,0,1,0,0],
 		3,
 		3,
-		&String::from("600"),
+		CAEvalType::new(&String::from("code=600")).unwrap(),
 		Border::Ring,
-		true,
 	);
 
 	let (_, config) = automate(Output::Cell, 0, 3, &ca);
@@ -24,9 +23,8 @@ fn code777() {
 		vec![0,0,0,1,0,0,0],
 		3,
 		3,
-		&String::from("777"),
+		CAEvalType::new(&String::from("code=777")).unwrap(),
 		Border::Ring,
-		true,
 	);
 
 	let (_, config) = automate(Output::Cell, 0, 3, &ca);

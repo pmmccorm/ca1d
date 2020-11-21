@@ -8,6 +8,9 @@ use png;
 
 use termcolor::{BufferWriter, Color, ColorChoice, ColorSpec, WriteColor};
 
+use num_bigint::{BigUint};
+use num_traits::cast::ToPrimitive;
+
 // A cell can be in [0,36], limited by from_digit and string input
 // A lattice is a 1d array of cells
 pub type Cell = u8;
@@ -15,35 +18,75 @@ pub type Lattice = Vec<Cell>;
 
 pub const CELL0 : Cell = 0;
 
-#[derive(Debug, PartialEq)]
-enum CAEvalType {
-	Rule(u128),
-	Code(u128),
+#[derive(Debug, PartialEq, Clone)]
+pub enum CAEvalType {
+	Rule(BigUint),
+	Code(BigUint),
 }
 
 impl CAEvalType {
-	fn new(input: & String, code: bool) -> Self {
-		let number = parse_u128(&input.to_string());
+    fn get_radix(s: &str) -> (u32, &str) {
+        if s.len() <= 2 {
+            return (10, s);
+        }
 
-		match code {
-			true	=> CAEvalType::Code(number),
-			false	=> CAEvalType::Rule(number),
-		}
+		let (radix, split) = match &s[..2] {
+			"0z" => (36, 2),
+			"0x" => (16, 2),
+			"0o" => (8, 2),
+			"0b" => (2, 2),
+			_    => (10, 0),
+		};
+
+        let (_, numportion) = s.split_at(split);
+
+        (radix, numportion)
+    }
+
+	pub fn new(input: & String) -> Result<Self, &'static str> {
+        let mut code = false;
+
+        let (_, s) = 
+        if input.starts_with("rule=") {
+            input.split_at(5)
+        } else if input.starts_with("code=") {
+            code = true;
+            input.split_at(5)
+        } else {
+            input.split_at(0)
+        };
+
+        let (radix, numportion) = CAEvalType::get_radix(s);
+
+        if numportion == "@" {
+        }
+
+        let bn = BigUint::parse_bytes(numportion.as_bytes(), radix);
+        match bn {
+            None    => Err("Failed to parse given rule"),
+            Some(n) => {
+                if code {
+                    Ok(CAEvalType::Code(n))
+                } else {
+                    Ok(CAEvalType::Rule(n))
+                }
+            }
+        }
 	}
+
+    fn to_bignum(&self) -> & BigUint {
+        match self {
+            CAEvalType::Code(n) => n,
+            CAEvalType::Rule(n) => n,
+        }
+    }
 }
 
-// maybe intergrate this better into opts later?
 impl FromStr for CAEvalType {
 	type Err = &'static str;
 
 	fn from_str(input: &str) -> Result<CAEvalType, Self::Err> {
-		let number = parse_u128(&input.to_string());
-		let t = false;
-
-		match t {
-			true	=> Ok(CAEvalType::Code(number)),
-			false	=> Ok(CAEvalType::Rule(number)),
-		}
+        CAEvalType::new(&input.to_string())
 	}
 }
 
@@ -55,14 +98,9 @@ struct CAEval {
 
 impl CAEval {
 	fn new(eval_type: CAEvalType, radix: u32) -> CAEval {
-		let rule_number = match eval_type {
-			CAEvalType::Rule(rn) => (rn),
-			CAEvalType::Code(rn) => (rn),
-		};
-
-		CAEval { eval_type : eval_type,
-			  radix : radix,
-			  rule_hash : Self::rule_map(rule_number, radix)
+		CAEval { eval_type: eval_type.clone(),
+			  radix: radix,
+			  rule_hash: Self::rule_map(eval_type.to_bignum(), radix)
 		}
 	}
 
@@ -105,28 +143,23 @@ impl CAEval {
 		sum
 	}
 
-	fn rule_map(mut x: u128, radix: u32) -> BTreeMap<usize, Cell> {
+	fn rule_map(x: & BigUint, radix: u32) -> BTreeMap<usize, Cell> {
+        let mut x: BigUint = x.clone();
 		let mut result = BTreeMap::new();
-		let mut idx : usize = 0;
+        let mut idx : usize = 0;
 
 		loop {
-			let m = x % (radix as u128);
-			x = x / (radix as u128);
+			let m = x.clone() % radix;
+			x = x / radix;
 
-			let v : Cell = m as Cell;
+			let v : Cell = m.to_u8().unwrap();
 			if v != CELL0 {
 				result.insert(idx, v);
 			}
 
-			let (_, over) = idx.overflowing_add(1);
-			if over {
-				// TODO: panic? or silently continue
-				break;
-			}
+            idx += 1;
 
-			idx += 1;
-
-			if x == 0 {
+			if x == BigUint::from_slice(&[0]) {
 				break;
 			}
 		}
@@ -478,14 +511,13 @@ impl CA {
 	pub fn new(config : Lattice,
 		   nabor_size : u32,
 		   rule_order : u32,
-		   rule_number : & String,
-		   border : Border,
-		   code: bool) -> CA {
+		   rule_number : CAEvalType,
+		   border : Border) -> CA {
 		CA { config: config,
 			nabor_size: nabor_size,
 			rule_order: rule_order,
 			border: border,
-			rule: CAEval::new(CAEvalType::new(rule_number, code), rule_order)
+			rule: CAEval::new(rule_number, rule_order)
 		}
 	}
 
@@ -582,24 +614,6 @@ impl CAPrinter<'_> {
 
 		(((from + count) * config.len()) as f64 /
 		 start.elapsed().as_secs_f64(), config)
-	}
-}
-
-fn parse_u128(s : & String) -> u128 {
-	let mut s = s.clone();
-	if s.len() <= 2 {
-		u128::from_str_radix(&s, 10).unwrap()
-	} else {
-
-		let (radix, s) = match &s[..2] {
-			"0z" => (36, s.split_off(2)),
-			"0x" => (16, s.split_off(2)),
-			"0o" => (8, s.split_off(2)),
-			"0b" => (2, s.split_off(2)),
-			_    => (10, s.split_off(0)),
-		};
-
-		u128::from_str_radix(s.as_str(), radix).unwrap()
 	}
 }
 
