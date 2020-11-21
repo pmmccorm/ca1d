@@ -41,7 +41,7 @@ impl CAEvalType {
         (radix, numportion)
     }
 
-    pub fn new(input: &String) -> Result<Self, &'static str> {
+    pub fn new(input: &str) -> Result<Self, &'static str> {
         let mut code = false;
 
         let (_, s) = if input.starts_with("rule=") {
@@ -386,7 +386,7 @@ impl CAWriter for PNGWriter {
 
         Self {
             fd: writer.into_stream_writer(),
-            radix: radix,
+            radix,
         }
     }
 
@@ -571,7 +571,7 @@ impl CA {
             nabors.clear();
         }
 
-        return next;
+        next
     }
 
     fn eval_ring(&self, config: &Lattice) -> Vec<u8> {
@@ -591,7 +591,7 @@ impl CA {
             nabors.clear();
         }
 
-        return next;
+        next
     }
 
     fn gtf(&self, config: &Lattice) -> Vec<u8> {
@@ -610,7 +610,7 @@ pub struct CAPrinter<'a> {
 }
 
 impl CAPrinter<'_> {
-    pub fn new<'a>(output: Output, from: usize, to: usize, ca: &'a CA) -> CAPrinter<'a> {
+    pub fn new(output: Output, from: usize, to: usize, ca: & CA) -> CAPrinter {
         CAPrinter {
             ca,
             output: get_printer(output, ca.rule_order, ca.config.len(), to),
