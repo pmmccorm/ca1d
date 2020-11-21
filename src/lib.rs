@@ -88,16 +88,16 @@ impl FromStr for CAEvalType {
 
 struct CAEval {
     eval_type: CAEvalType,
-    radix: u32,
     rule_hash: BTreeMap<usize, Cell>,
+    radix: u32,
 }
 
 impl CAEval {
     fn new(eval_type: CAEvalType, radix: u32) -> CAEval {
         CAEval {
             eval_type: eval_type.clone(),
-            radix: radix,
             rule_hash: Self::rule_map(eval_type.to_bignum(), radix),
+            radix,
         }
     }
 
@@ -235,8 +235,8 @@ impl CAWriter for AsciiWriter {
 
         Self {
             symbols: [' ', '-', '=', '#', '@'],
-            radix: radix,
             sbuf: String::with_capacity(width),
+            radix,
         }
     }
 
@@ -258,8 +258,8 @@ impl CAWriter for UnicodeWriter {
         Self {
             ascii_writer: AsciiWriter {
                 symbols: [' ', '░', '▒', '▓', '█'],
-                radix: radix,
                 sbuf: String::with_capacity(width),
+                radix,
             },
         }
     }
@@ -285,7 +285,7 @@ impl CAWriter for AnsiGreyWriter {
         Self {
             bufwtr: BufferWriter::stdout(ColorChoice::Always),
             greys: greyscale,
-            radix: radix,
+            radix,
         }
     }
 
@@ -300,7 +300,7 @@ impl CAWriter for AnsiGreyWriter {
         }
 
         buffer.reset();
-        writeln!(&mut buffer, "");
+        writeln!(&mut buffer);
 
         self.bufwtr.print(&buffer);
     }
@@ -323,8 +323,8 @@ impl CAWriter for UnicodeAnsiWriter {
 
         Self {
             bufwtr: BufferWriter::stdout(ColorChoice::Always),
-            colors: colors,
-            radix: radix,
+            colors,
+            radix,
             config: None,
         }
     }
@@ -355,7 +355,7 @@ impl CAWriter for UnicodeAnsiWriter {
         }
 
         buffer.reset();
-        writeln!(&mut buffer, "");
+        writeln!(&mut buffer);
 
         self.bufwtr.print(&buffer);
         self.config = None;
@@ -432,6 +432,7 @@ fn to_base_triple(c: Cell, radix: u32) -> Vec<f32> {
 // then scale the R,G,B values by this triple.
 // makes for maximally distant, but somewhat ugly colors
 fn cell_to_rgb(c: Cell, radix: u32) -> (u8, u8, u8) {
+    assert!(radix <= 64);
     let base = if radix < 8 {
         2
     } else if radix < 27 {
@@ -540,10 +541,10 @@ impl CA {
         border: Border,
     ) -> CA {
         CA {
-            config: config,
-            nabor_size: nabor_size,
-            rule_order: rule_order,
-            border: border,
+            config,
+            nabor_size,
+            rule_order,
+            border,
             rule: CAEval::new(rule_number, rule_order),
         }
     }
@@ -604,17 +605,17 @@ impl CA {
 pub struct CAPrinter<'a> {
     ca: &'a CA,
     output: Box<dyn CAWriter>,
-    to: usize,
     from: usize,
+    to: usize,
 }
 
 impl CAPrinter<'_> {
     pub fn new<'a>(output: Output, from: usize, to: usize, ca: &'a CA) -> CAPrinter<'a> {
         CAPrinter {
-            ca: ca,
+            ca,
             output: get_printer(output, ca.rule_order, ca.config.len(), to),
-            from: from,
-            to: to,
+            from,
+            to,
         }
     }
 
