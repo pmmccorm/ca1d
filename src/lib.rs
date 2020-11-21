@@ -4,8 +4,6 @@ use std::collections::BTreeMap;
 use std::io::{Write, BufWriter};
 use std::io;
 
-use png;
-
 use termcolor::{BufferWriter, Color, ColorChoice, ColorSpec, WriteColor};
 
 use num_bigint::{BigUint};
@@ -150,7 +148,7 @@ impl CAEval {
 
 		loop {
 			let m = x.clone() % radix;
-			x = x / radix;
+			x /= radix;
 
 			let v : Cell = m.to_u8().unwrap();
 			if v != CELL0 {
@@ -286,7 +284,7 @@ impl CAWriter for AnsiGreyWriter {
 		}
 
 		buffer.reset();
-		write!(&mut buffer, "\n");
+		writeln!(&mut buffer, "");
 
 		self.bufwtr.print(&buffer);
 	}
@@ -336,7 +334,7 @@ impl CAWriter for UnicodeAnsiWriter {
 		}
 
 		buffer.reset();
-		write!(&mut buffer, "\n");
+		writeln!(&mut buffer, "");
 
 		self.bufwtr.print(&buffer);
 		self.config = None;
@@ -390,7 +388,7 @@ fn to_base_triple(c: Cell, radix: u32) -> Vec<f32> {
 
 	loop {
 		let m = x % radix;
-		x = x / radix;
+		x /= radix;
 
 		result.push(m as f32 / (radix - 1) as f32);
 
@@ -522,7 +520,7 @@ impl CA {
 	}
 
 	// fixed border of lowest symbol
-	fn eval_fixed(&self, config: & Vec<u8>) -> Vec<u8> {
+	fn eval_fixed(&self, config: & Lattice) -> Vec<u8> {
 		let mut next : Vec<u8> = Vec::with_capacity(config.len());
 		let nabor_size = self.nabor_size as usize;
 		let nabor_side = (nabor_size - 1) / 2;
@@ -546,7 +544,7 @@ impl CA {
 		return next;
 	}
 
-	fn eval_ring(&self, config: & Vec<u8>) -> Vec<u8> {
+	fn eval_ring(&self, config: & Lattice) -> Vec<u8> {
 		let mut next : Vec<u8> = Vec::with_capacity(config.len());
 		let nabor_size = self.nabor_size as usize;
 		let nabor_side = (nabor_size - 1) / 2;
@@ -566,7 +564,7 @@ impl CA {
 		return next;
 	}
 
-	fn gtf(&self, config : & Vec<u8>) -> Vec<u8> {
+	fn gtf(&self, config : & Lattice) -> Vec<u8> {
 		match self.border {
 			Border::Ring => {
 				self.eval_ring(config)
