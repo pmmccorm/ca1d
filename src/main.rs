@@ -179,7 +179,7 @@ pub fn main() {
         eprintln!("\n{} /s", per_s);
 
         eprintln!(
-            "ca1d {} {} {:?} {}",
+            "ca1d {} {} {} {}",
             opts.radix,
             opts.nabor_size,
             opts.rule_number,

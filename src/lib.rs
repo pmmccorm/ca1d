@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::io;
+use std::fmt;
 use std::io::{BufWriter, Write};
 use std::str::FromStr;
 use std::time::Instant;
@@ -20,6 +21,16 @@ pub const CELL0: Cell = 0;
 pub enum CAEvalType {
     Rule(BigUint),
     Code(BigUint),
+}
+
+impl fmt::Display for CAEvalType {
+     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let (pfx, t) = match self {
+            CAEvalType::Rule(n) => ("rule=", n),
+            CAEvalType::Code(n) => ("code=", n)
+        };
+        write!(f, "{}{}", pfx, t)
+    }
 }
 
 impl CAEvalType {
@@ -187,6 +198,24 @@ trait CAWriter {
         Self: Sized;
 
     fn write_line(&mut self, v: &Lattice);
+
+    // given a symbol number in [0,sym_count) , sym_count, and array_len >= sym_count
+    // return and index in [0,array_len) that is linearly "spaced" equally over the array
+    fn idx_scale(sym_num: u8, sym_count: u32, array_len: usize) -> usize where Self: Sized {
+        let sym_num: usize = sym_num as usize;
+        let sym_count: usize = sym_count as usize;
+
+        let space = array_len / (sym_count - 1);
+        let idx = usize::min(sym_num * space, array_len - 1);
+
+        assert!(sym_count > 1);
+        assert!(array_len > 1);
+        assert!(sym_num < sym_count);
+        assert!(sym_count <= array_len);
+
+        idx
+    }
+
 }
 
 struct NullWriter {}
@@ -247,7 +276,7 @@ impl CAWriter for AsciiWriter {
 
     fn write_line(&mut self, v: &Lattice) {
         for i in v {
-            let idx: usize = idx_select(*i, self.radix, self.symbols.len());
+            let idx: usize = Self::idx_scale(*i, self.radix, self.symbols.len());
             self.sbuf.push(self.symbols[idx]);
         }
         println!("{}", self.sbuf);
@@ -299,7 +328,7 @@ impl CAWriter for AnsiGreyWriter {
         let mut buffer = self.bufwtr.buffer();
 
         for i in v {
-            let idx: usize = idx_select(*i, self.radix, self.greys.len());
+            let idx: usize = Self::idx_scale(*i, self.radix, self.greys.len());
             buffer.set_color(ColorSpec::new().set_bg(Some(self.greys[idx])));
             write!(&mut buffer, " ");
         }
@@ -348,8 +377,8 @@ impl CAWriter for UnicodeAnsiWriter {
         }
 
         for (i, _) in top.iter().enumerate() {
-            let idx_top: usize = idx_select(top[i], self.radix, self.colors.len());
-            let idx_bot: usize = idx_select(v[i], self.radix, self.colors.len());
+            let idx_top: usize = Self::idx_scale(top[i], self.radix, self.colors.len());
+            let idx_bot: usize = Self::idx_scale(v[i], self.radix, self.colors.len());
             buffer.set_color(
                 ColorSpec::new()
                     .set_fg(Some(self.colors[idx_top]))
@@ -536,7 +565,6 @@ impl CA {
     }
 
     // does no checking of inputs, watch out
-    // width == config.len()
     pub fn new(
         nabor_size: u32,
         rule_order: u32,
@@ -548,6 +576,22 @@ impl CA {
             rule_order,
             border,
             rule: CAEval::new(rule_number, rule_order),
+        }
+    }
+ 
+    // given a singed integer and an array length, treat the integer as
+    // an index and "roll" it over the array
+    // ie modulo with defined behavior for negative numbers
+    // TODO: our lattice size is limited to i32 (2^31)
+    fn idx_mod(idx: i32, array_len: usize) -> usize {
+        let array_len: i32 = array_len as i32;
+
+        if idx >= array_len {
+            (idx % array_len) as usize
+        } else if idx < 0 {
+            (array_len + (idx % array_len)) as usize
+        } else {
+            idx as usize
         }
     }
 
@@ -563,7 +607,7 @@ impl CA {
 
             for i in (idx - nabor_side as i32)..(idx + nabor_side as i32) + 1 {
                 if i < 0 || i >= config.len() as i32 {
-                    nabors.push(0);
+                    nabors.push(CELL0);
                 } else {
                     nabors.push(config[i as usize]);
                 }
@@ -586,7 +630,7 @@ impl CA {
             let idx: i32 = idx as i32;
 
             for i in (idx - nabor_side as i32)..(idx + nabor_side as i32) + 1 {
-                nabors.push(config[idx_mod(i, config.len())]);
+                nabors.push(config[Self::idx_mod(i, config.len())]);
             }
 
             next.push(self.rule.eval(&nabors));
@@ -635,39 +679,6 @@ impl CAPrinter<'_> {
             ((from + count) * config.len()) as f64 / start.elapsed().as_secs_f64(),
             config,
         )
-    }
-}
-
-// given a symbol number in [0,sym_count) , sym_count, and array_len >= sym_count
-// return and index in [0,array_len) that is linearly "spaced" equally over the array
-fn idx_select(sym_num: u8, sym_count: u32, array_len: usize) -> usize {
-    let sym_num: usize = sym_num as usize;
-    let sym_count: usize = sym_count as usize;
-
-    let space = array_len / (sym_count - 1);
-    let idx = usize::min(sym_num * space, array_len - 1);
-
-    assert!(sym_count > 1);
-    assert!(array_len > 1);
-    assert!(sym_num < sym_count);
-    assert!(sym_count <= array_len);
-
-    idx
-}
-
-// given a singed integer and an array length, treat the integer as
-// an index and "roll" it over the array
-// ie modulo with defined behavior for negative numbers
-// TODO: our lattice size is limited to i32 (2^31)
-fn idx_mod(idx: i32, array_len: usize) -> usize {
-    let array_len: i32 = array_len as i32;
-
-    if idx >= array_len {
-        (idx % array_len) as usize
-    } else if idx < 0 {
-        (array_len + (idx % array_len)) as usize
-    } else {
-        idx as usize
     }
 }
 
