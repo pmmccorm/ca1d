@@ -2,15 +2,14 @@ extern crate clap;
 use crate::clap::Clap;
 
 use rand::Rng;
-use term_size;
 
-use ca1d::{automate, Border, CAEvalType, Cell, Lattice, Output, CA, CELL0};
+use ca1d::{automate, Border, CAEvalType, Cell, Lattice, Output, CA, CELL0, from_char};
 
 #[derive(Clap, Debug)]
 #[clap(version = "1.0", author = "www.github.com/pmmccorm/ca1d")]
 struct Opts {
     /// number of symbols (1, 36]
-    rule_order: u32,
+    radix: u32,
 
     /// neighbor size, centered (must be odd)
     nabor_size: u32,
@@ -52,8 +51,8 @@ impl Opts {
             eprintln!("{:?}", self);
         }
 
-        if self.rule_order < 2 || self.rule_order > 36 {
-            eprintln!("don't understand CA with {} states", self.rule_order);
+        if self.radix < 2 || self.radix > 36 {
+            eprintln!("don't understand CA with {} states", self.radix);
             return false;
         }
 
@@ -65,57 +64,71 @@ impl Opts {
         // we don't validate if rule is too larger here
         // just silently use lower/needed bits
 
-        // now validate start_config...
-        // symbols [0..rule_order)
-        // TODO: let config_transform handle this..
+        // @|[0..radix]
+        // TODO
+        if self.start_config == "@" {
+        } else {
+            for c in self.start_config.chars() {
+                if from_char(c) >= self.radix as u8 {
+                    eprintln!("invalid character in given config: {}", c);
+                    return false;
+                }
+            }
+        }
 
-        return true;
+        true
+    }
+
+    fn hite(&self) -> usize {
+        if self.output == Output::UnicodeAnsi {
+            return 2 * term_hite(self.to);
+        }
+        term_hite(self.to)
+    }
+
+    fn width(&self) -> usize {
+        term_width(self.width)
+    }
+
+    // @ means all random config
+    // TODO: aborts here if input str has chars not in radix
+    fn config(&self) -> Lattice {
+        let width = self.width();
+        let mut config = Lattice::with_capacity(width);
+
+        if self.start_config == "@" {
+            let mut rng = rand::thread_rng();
+            for _ in 0..width {
+                config.push(rng.gen_range(CELL0, self.radix as Cell));
+            }
+        } else {
+            // normal fill logic
+            let padding = (width - self.start_config.len()) / 2;
+            let mut lpad = vec![CELL0; padding];
+            let mut rpad = vec![CELL0; padding];
+
+            config.append(&mut lpad);
+
+            for c in self.start_config.chars() {
+                let d = c.to_digit(self.radix).unwrap();
+                config.push(d as Cell);
+            }
+
+            config.append(&mut rpad);
+        }
+
+        config
     }
 
     // versus implenenting From trait
     fn to_ca(&self) -> CA {
-        let width = term_width(self.width);
-        let start_config = config_transform(self.rule_order, width, &self.start_config);
         CA::new(
-            start_config,
             self.nabor_size,
-            self.rule_order,
+            self.radix,
             self.rule_number.clone(),
             self.border,
         )
     }
-}
-
-// for now @ means all random config
-// in future: _ for a random character? eg 1__2_0
-// TODO: aborts here if input str has chars not in radix
-fn config_transform(radix: u32, width: usize, s: &String) -> Lattice {
-    let mut config = Lattice::with_capacity(width);
-
-    assert!(config.len() <= width);
-
-    if s == "@" {
-        let mut rng = rand::thread_rng();
-        for _ in 0..width {
-            config.push(rng.gen_range(CELL0, radix as Cell));
-        }
-    } else {
-        // normal fill logic
-        let padding = (width - s.len()) / 2;
-        let mut lpad = vec![CELL0; padding];
-        let mut rpad = vec![CELL0; padding];
-
-        config.append(&mut lpad);
-
-        for c in s.chars() {
-            let d = c.to_digit(radix).unwrap();
-            config.push(d as Cell);
-        }
-
-        config.append(&mut rpad);
-    }
-
-    config
 }
 
 fn term_wh() -> (usize, usize) {
@@ -151,19 +164,23 @@ pub fn main() {
 
     if !opts.validate_opts() {
         println!("invalid options");
-        return ();
+        return;
     }
 
     let ca = opts.to_ca();
 
-    let (per_s, final_config) = automate(opts.output, opts.from, term_hite(opts.to), &ca);
+    let (per_s, final_config) = automate(opts.output,
+                                         opts.from,
+                                         opts.hite(),
+                                         &ca,
+                                         &opts.config());
 
     if opts.verbose > 0 {
         eprintln!("\n{} /s", per_s);
 
         eprintln!(
             "ca1d {} {} {:?} {}",
-            opts.rule_order,
+            opts.radix,
             opts.nabor_size,
             opts.rule_number,
             CA::print_config(final_config)

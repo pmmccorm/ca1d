@@ -55,7 +55,8 @@ impl CAEvalType {
 
         let (radix, numportion) = CAEvalType::get_radix(s);
 
-        if numportion == "@" {}
+        if numportion == "@" {
+        }
 
         let bn = BigUint::parse_bytes(numportion.as_bytes(), radix);
         match bn {
@@ -174,6 +175,10 @@ pub fn from_digit(c: &Cell) -> char {
         '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h',
         'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
     ][*c as usize]
+}
+
+pub fn from_char(c: char) -> Cell {
+    u8::from_str_radix(&String::from(c), 36).unwrap()
 }
 
 trait CAWriter {
@@ -515,7 +520,6 @@ impl FromStr for Border {
 }
 
 pub struct CA {
-    config: Lattice,
     nabor_size: u32,
     rule_order: u32,
     border: Border,
@@ -534,14 +538,12 @@ impl CA {
     // does no checking of inputs, watch out
     // width == config.len()
     pub fn new(
-        config: Lattice,
         nabor_size: u32,
         rule_order: u32,
         rule_number: CAEvalType,
         border: Border,
     ) -> CA {
         CA {
-            config,
             nabor_size,
             rule_order,
             border,
@@ -574,7 +576,7 @@ impl CA {
         next
     }
 
-    fn eval_ring(&self, config: &Lattice) -> Vec<u8> {
+    fn eval_ring(&self, config: &Lattice) -> Lattice {
         let mut next: Vec<u8> = Vec::with_capacity(config.len());
         let nabor_size = self.nabor_size as usize;
         let nabor_side = (nabor_size - 1) / 2;
@@ -594,7 +596,7 @@ impl CA {
         next
     }
 
-    fn gtf(&self, config: &Lattice) -> Vec<u8> {
+    pub fn gtf(&self, config: &Lattice) -> Lattice {
         match self.border {
             Border::Ring => self.eval_ring(config),
             Border::Fixed => self.eval_fixed(config),
@@ -603,29 +605,21 @@ impl CA {
 }
 
 pub struct CAPrinter<'a> {
-    ca: &'a CA,
     output: Box<dyn CAWriter>,
-    from: usize,
-    to: usize,
+    ca: &'a CA,
 }
 
 impl CAPrinter<'_> {
-    pub fn new(output: Output, from: usize, to: usize, ca: & CA) -> CAPrinter {
+    pub fn new(output: Output, ca: & CA, width: usize, hite: usize) -> CAPrinter {
         CAPrinter {
+            output: get_printer(output, ca.rule_order, width, hite),
             ca,
-            output: get_printer(output, ca.rule_order, ca.config.len(), to),
-            from,
-            to,
         }
     }
 
-    pub fn eval(&mut self) -> (f64, Lattice) {
-        self.eval_print(self.from, self.to)
-    }
-
     // returns cells per second
-    fn eval_print(&mut self, from: usize, count: usize) -> (f64, Lattice) {
-        let mut config = self.ca.config.clone();
+    fn eval(&mut self, from: usize, count: usize, config: & Lattice) -> (f64, Lattice) {
+        let mut config = config.clone();
         let start = Instant::now();
 
         for _ in 0..from {
@@ -677,7 +671,8 @@ fn idx_mod(idx: i32, array_len: usize) -> usize {
     }
 }
 
-pub fn automate(output: Output, from: usize, to: usize, ca: &CA) -> (f64, Lattice) {
-    let mut output = CAPrinter::new(output, from, to, ca);
-    output.eval()
+pub fn automate(output: Output, from: usize, to: usize, ca: &CA, start_config: & Lattice) -> (f64, Lattice) {
+    let width = start_config.len();
+    let mut output = CAPrinter::new(output, ca, width, to);
+    output.eval(from, to, start_config)
 }
