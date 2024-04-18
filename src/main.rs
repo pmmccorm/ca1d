@@ -1,11 +1,10 @@
-extern crate clap;
-use crate::clap::Clap;
+use clap::Parser;
 
 use rand::Rng;
 
 use ca1d::{automate, Border, CAEvalType, Cell, Lattice, Output, CA, CELL0, from_char};
 
-#[derive(Clap, Debug)]
+#[derive(Parser, Debug)]
 #[clap(version = "1.0", author = "www.github.com/pmmccorm/ca1d")]
 struct Opts {
     /// number of symbols (1, 36]
@@ -14,14 +13,19 @@ struct Opts {
     /// neighbor size, centered (must be odd)
     nabor_size: u32,
 
-    /// Wolfram style rule number [0, order^order^neighbor_size)
+    /// Wolfram style rule number [0, radix^radix^neighbor_size)
     rule_number: CAEvalType,
 
     /// initial configuration string in base 36, eg "01f" -> 0, 1, 15
     start_config: String,
 
+    /// neighbor mask NNN.. with N being 0|1, and count of N matching nabor_size
+    /// By default all neighbors are evaluated.
+    #[clap(short, long, default_value("0"))]
+    nabor_mask: String,
+
     /// level of verbosity
-    #[clap(short, long, parse(from_occurrences))]
+    #[clap(short, long, default_value("0"))]
     verbose: i32,
 
     /// select output type
@@ -58,6 +62,16 @@ impl Opts {
 
         if self.nabor_size % 2 == 0 {
             eprintln!("neighborhood must be an odd number");
+            return false;
+        }
+
+        if self.nabor_mask != "0" && self.nabor_mask.len() != self.nabor_size as usize {
+            eprintln!("neighborhood mask not equal to length");
+            return false;
+        }
+
+        if ! self.nabor_mask.chars().all(|c| c == '0' || c == '1') {
+            eprintln!("neighborhood mask can only contain 0s and 1s");
             return false;
         }
 
@@ -99,7 +113,7 @@ impl Opts {
         if self.start_config == "@" {
             let mut rng = rand::thread_rng();
             for _ in 0..width {
-                config.push(rng.gen_range(CELL0, self.radix as Cell));
+                config.push(rng.gen_range(CELL0..self.radix as Cell));
             }
         } else {
             // normal fill logic
@@ -159,6 +173,10 @@ fn term_width(from_opts: usize) -> usize {
     }
 }
 
+fn cmd_line(opts: Opts) -> String {
+    format!("ca1d {} {} {} {}", opts.radix, opts.nabor_size, opts.rule_number, opts.start_config)
+}
+
 pub fn main() {
     let opts: Opts = Opts::parse();
 
@@ -177,13 +195,8 @@ pub fn main() {
 
     if opts.verbose > 0 {
         eprintln!("\n{} /s", per_s);
-
-        eprintln!(
-            "ca1d {} {} {} {}",
-            opts.radix,
-            opts.nabor_size,
-            opts.rule_number,
-            CA::print_config(final_config)
+        eprintln!("{}", cmd_line(opts));
+        eprintln!("{}", CA::print_config(final_config)
         );
     }
 }

@@ -17,7 +17,7 @@ pub type Lattice = Vec<Cell>;
 
 pub const CELL0: Cell = 0;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum CAEvalType {
     Rule(BigUint),
     Code(BigUint),
@@ -94,7 +94,7 @@ impl FromStr for CAEvalType {
     type Err = &'static str;
 
     fn from_str(input: &str) -> Result<CAEvalType, Self::Err> {
-        CAEvalType::new(&input.to_string())
+        CAEvalType::new(input)
     }
 }
 
@@ -366,15 +366,14 @@ impl CAWriter for UnicodeAnsiWriter {
     #[allow(unused_must_use)]
     fn write_line(&mut self, v: &Lattice) {
         let mut buffer = self.bufwtr.buffer();
-        let top: Lattice;
 
-        match &self.config {
-            Some(t) => top = t.to_vec(),
+        let top = match &self.config {
+            Some(t) => t.to_vec(),
             None => {
                 self.config = Some(v.to_vec());
                 return;
             }
-        }
+        };
 
         for (i, _) in top.iter().enumerate() {
             let idx_top: usize = Self::idx_scale(top[i], self.radix, self.colors.len());
@@ -407,34 +406,40 @@ impl Drop for UnicodeAnsiWriter {
 }
 
 struct PNGWriter {
-    fd: png::StreamWriter<'static, std::io::BufWriter<std::io::Stdout>>,
+    fd: png::Writer<BufWriter<std::io::Stdout>>,
     radix: u32,
+    lines: Vec<u8>
 }
 impl CAWriter for PNGWriter {
     fn new(radix: u32, width: usize, hite: usize) -> Self {
         let w: std::io::BufWriter<std::io::Stdout> = BufWriter::new(std::io::stdout());
         let mut encoder = png::Encoder::new(w, width as u32, hite as u32);
-        encoder.set_color(png::ColorType::RGB);
+        encoder.set_color(png::ColorType::Rgb);
         encoder.set_depth(png::BitDepth::Eight);
         let writer = encoder.write_header().unwrap();
 
         Self {
-            fd: writer.into_stream_writer(),
+            fd: writer,
             radix,
+            lines: Vec::new()
         }
     }
 
     // TODO: optimize
     #[allow(unused_must_use)]
     fn write_line(&mut self, v: &Lattice) {
-        let mut line = Vec::new();
         for i in v {
             let (r, g, b) = cell_to_rgb(*i, self.radix);
-            line.push(r);
-            line.push(g);
-            line.push(b);
+            self.lines.push(r);
+            self.lines.push(g);
+            self.lines.push(b);
         }
-        self.fd.write(&line);
+    }
+}
+
+impl Drop for PNGWriter {
+    fn drop(&mut self) {
+        self.fd.write_image_data(&self.lines).unwrap()
     }
 }
 
@@ -484,7 +489,7 @@ fn cell_to_rgb(c: Cell, radix: u32) -> (u8, u8, u8) {
     )
 }
 
-#[derive(Debug, PartialEq, Copy, Clone)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum Output {
     Null,
     Ascii,
@@ -530,7 +535,7 @@ impl FromStr for Output {
 }
 
 // TODO: specify the fixed border symbol(s?)
-#[derive(Debug, PartialEq, Copy, Clone)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum Border {
     Ring,
     Fixed,
