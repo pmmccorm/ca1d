@@ -437,6 +437,7 @@ impl CAWriter for PNGWriter {
     }
 }
 
+// Or can we ise a StreamWriter or something?
 impl Drop for PNGWriter {
     fn drop(&mut self) {
         self.fd.write_image_data(&self.lines).unwrap()
@@ -659,7 +660,7 @@ pub struct CAPrinter<'a> {
 }
 
 impl CAPrinter<'_> {
-    pub fn new(output: Output, ca: & CA, width: usize, hite: usize) -> CAPrinter {
+    pub fn new(output: Output, ca: & CA, width: usize, hite: usize) -> CAPrinter<'_> {
         CAPrinter {
             output: get_printer(output, ca.rule_order, width, hite),
             ca,

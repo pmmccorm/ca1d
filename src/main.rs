@@ -111,9 +111,9 @@ impl Opts {
         let mut config = Lattice::with_capacity(width);
 
         if self.start_config == "@" {
-            let mut rng = rand::thread_rng();
+            let mut rng = rand::rng();
             for _ in 0..width {
-                config.push(rng.gen_range(CELL0..self.radix as Cell));
+                config.push(rng.random_range(CELL0..self.radix as Cell));
             }
         } else {
             // normal fill logic
