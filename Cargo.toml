@@ -24,7 +24,7 @@ name = "cycler"
 path = "src/cycler.rs"
 
 [dependencies]
-clap = { version = "4.5.47", features = ["derive"] }
+clap = { version = "4.5.53", features = ["derive"] }
 term_size = "0.3.2"
 termcolor = "1.4.1"
 png = "0.18.0"
